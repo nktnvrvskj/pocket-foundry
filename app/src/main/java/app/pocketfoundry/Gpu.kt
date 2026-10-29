@@ -1,5 +1,6 @@
 package app.pocketfoundry
 
+import android.content.Context
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES20
@@ -22,6 +23,15 @@ object Gpu {
         val number = ADRENO.find(name)?.groupValues?.get(1)?.toInt() ?: return true
         return number >= 600
     }
+
+    /** Mali and Immortalis, which the bundled PanVK drives; Android names them in the renderer string. */
+    val mali: Boolean get() {
+        val name = name ?: return false
+        return name.contains("Mali", ignoreCase = true) || name.contains("Immortalis", ignoreCase = true)
+    }
+
+    /** Whether the runtime ships a driver for this GPU: Adreno 6xx+, or a Mali with the bundled PanVK. */
+    fun hasDriver(context: Context) = supported || (mali && Drivers.panvkAvailable(context))
 
     private val ADRENO = Regex("""Adreno \(TM\) (\d{3})""")
 

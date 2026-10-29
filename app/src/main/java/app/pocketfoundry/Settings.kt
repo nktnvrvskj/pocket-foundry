@@ -42,10 +42,12 @@ object Settings {
     fun setBorder(context: Context, dp: Int) = prefs(context).edit().putInt("border", dp).apply()
 
     /** Factorio's graphics-quality, missing from its menus: "medium" halves the sprites, ~600 MB less memory. */
-    fun spriteQuality(context: Context) = prefs(context).getString("spriteQuality", "high")!!
+    fun spriteQuality(context: Context) = prefs(context).getString("spriteQuality", null)
+        ?: if (Gpu.mali) "medium" else "high"
     fun setSpriteQuality(context: Context, quality: String) = prefs(context).edit().putString("spriteQuality", quality).apply()
 
-    fun driver(context: Context) = prefs(context).getString("driver", Drivers.ZINK)!!
+    /** Empty until picked: Drivers.chosen then takes the phone's GPU into account. */
+    fun driver(context: Context) = prefs(context).getString("driver", "")!!
     fun setDriver(context: Context, id: String) = prefs(context).edit().putString("driver", id).apply()
     fun driverOptions(context: Context) = prefs(context).getString("driverOptions", "")!!
     fun setDriverOptions(context: Context, options: String) = prefs(context).edit().putString("driverOptions", options).apply()

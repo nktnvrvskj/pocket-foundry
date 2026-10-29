@@ -195,7 +195,7 @@ class LauncherActivity : Activity() {
                 setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://factorio.com/download"))) }
             })
         })
-        if (!Gpu.supported) inset.addView(label(this, "Needs an Adreno 6xx or newer: this phone's ${Gpu.name} isn't supported yet.", 14f, Factorio.ERROR))
+        if (!Gpu.hasDriver(this) && !Drivers.imported(this)) inset.addView(label(this, "Needs an Adreno 6xx or newer, or a Mali with PanVK: this phone's ${Gpu.name} isn't supported yet.", 14f, Factorio.ERROR))
         welcomeError = label(this, "", 14f, Factorio.ERROR)
         inset.addView(welcomeError)
         panel.addView(inset)
@@ -418,7 +418,7 @@ class LauncherActivity : Activity() {
 
         val failure = error ?: Session.lastFailure?.let { status ->
             when {
-                !Gpu.supported && !Drivers.imported(this) -> "This phone's GPU isn't supported yet."
+                !Gpu.hasDriver(this) && !Drivers.imported(this) -> "This phone's GPU isn't supported yet."
                 Session.noWindow -> "The graphics driver didn't start. See Logs."
                 else -> "Factorio stopped unexpectedly ($status). See Logs."
             }
@@ -578,7 +578,7 @@ class LauncherActivity : Activity() {
             val remove = FButton(context, "Remove").apply {
                 setOnClickListener {
                     Drivers.remove(context, Settings.driver(context))
-                    Settings.setDriver(context, Drivers.ZINK)
+                    Settings.setDriver(context, "")
                     listDrivers()
                 }
             }
@@ -614,7 +614,7 @@ class LauncherActivity : Activity() {
             }, LinearLayout.LayoutParams(MATCH, dpi(42)))
         }
         (list.parent as View).layoutParams.height = if (drivers.size > 3) dpi(3 * 46 + 12) else WRAP
-        driverButtons.firstOrNull()?.isEnabled = chosen != Drivers.ZINK && chosen != Drivers.FREEDRENO
+        driverButtons.firstOrNull()?.isEnabled = chosen != Drivers.ZINK && chosen != Drivers.FREEDRENO && chosen != Drivers.PANVK
     }
 
     private fun pickDriver() {

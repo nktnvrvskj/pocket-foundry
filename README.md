@@ -23,7 +23,7 @@ Needs Android 10 or later.
 |---|---|---|
 | Adreno 6xx and newer | Snapdragon | Works |
 | Xclipse | Exynos (Galaxy S24, S25) | Works with an imported driver |
-| Mali | MediaTek, Google Tensor, older Exynos | Some, with an imported driver |
+| Mali v9 and newer | MediaTek, Google Tensor, older Exynos | Works with the bundled PanVK |
 | PowerVR | Pixel 10 | Not yet |
 | Adreno 5xx and older | Older Snapdragon | No |
 
@@ -40,7 +40,7 @@ what the Logs screen shows (its Copy button takes it all).
 
 ## Licence
 
-GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD),
+GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), PanVK-kbase (MIT), SDL (zlib), liblzma (0BSD),
 Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0).
 
 Factorio is © Wube Software. Pocket Foundry isn't affiliated with Wube and includes none of its files; the game

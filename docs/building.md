@@ -3,8 +3,9 @@
 ## How it works
 
 - **Your copy, imported:** the archive is unpacked into Pocket Foundry's private storage. The APK carries none of Factorio.
-- **A small Linux runtime:** glibc built for Android's paths, Mesa's Zink on Turnip (OpenGL over Adreno's Vulkan),
-  Termux:X11's X server as the screen and a tiny window manager. The game binary itself is never modified.
+- **A small Linux runtime:** glibc built for Android's paths, Mesa's Zink on Turnip (OpenGL over Adreno's Vulkan) and
+  the same Zink on PanVK for Mali, Termux:X11's X server as the screen and a tiny window manager. PanVK comes from
+  PanVK-kbase (Mesa, MIT), downloaded into the runtime by `runtime/assemble`; the game binary itself is never modified.
 - **Sound and controls through SDL:** the game's static SDL3 hands over to Pocket Foundry's SDL 3.4 through SDL's
   dynamic API. That SDL plays audio through the app, adds a virtual gamepad driven by the on-screen controller or a
   real one, and paces frames for the 30 FPS cap. It also tells the game how many pixels make a display point, so the

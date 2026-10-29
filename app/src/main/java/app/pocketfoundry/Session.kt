@@ -61,7 +61,7 @@ object Session {
             // Autosaves cut short by a kill: Factorio offers them as "Continue" and can't open them.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
             keyboard = Keyboards.connected(context) && !Gamepads.connected(context)
-            writeConfig(paths, Settings.spriteQuality(context), keyboard)
+            writeConfig(paths, Settings.spriteQuality(context), keyboard, Drivers.isPanvk(context))
             val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
             val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
                           else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
@@ -243,7 +243,7 @@ object Session {
     }
 
     /** Factorio derives its paths from its executable, here the loader, so the config names them. */
-    private fun writeConfig(paths: Paths, spriteQuality: String, keyboard: Boolean) {
+    private fun writeConfig(paths: Paths, spriteQuality: String, keyboard: Boolean, panvk: Boolean) {
         var config = if (paths.config.exists()) paths.config.readText() else ""
         // Without its version header Factorio calls the file invalid and offers a reset.
         if (!config.startsWith("; version=")) config = "; version=13\n"
@@ -257,6 +257,15 @@ object Session {
             config = setIni(config, "interface", "custom-proportional-ui-scale", "1.25")
         }
         config = setIni(config, "graphics", "graphics-quality", spriteQuality)
+        if (panvk) {
+            // Mali's tiler heap is small (a fixed number of 2 MiB chunks): Factorio picking its 8K atlases from
+            // the phone's shared memory makes the GPU run out of tiler heap while it uploads and compresses
+            // them, and kbase then kills the queue group (DEVICE_LOST). 4K atlases and a medium video-memory
+            // budget stay well inside it, and cost little at phone resolutions.
+            config = setIni(config, "graphics", "max-texture-size", "4096")
+            config = setIni(config, "graphics", "video-memory-usage", "medium")
+            config = setIni(config, "graphics", "optimize-for-low-vram", "true")
+        }
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
     }

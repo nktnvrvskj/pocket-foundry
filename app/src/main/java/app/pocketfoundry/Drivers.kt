@@ -20,17 +20,28 @@ object Drivers {
 
     const val ZINK = "zink"
     const val FREEDRENO = "freedreno"
+    /** PanVK on kbase, for Mali: bundled with the runtime so those phones need no imported driver. */
+    const val PANVK = "panvk"
 
     private fun dir(paths: Paths) = File(paths.files, "drivers")
+
+    /** The Vulkan ICD the runtime ships for Mali (runtime/assemble). */
+    fun panvkIcd(paths: Paths) = File(paths.prefix, "share/vulkan/icd.d/panfrost_icd.aarch64.json")
+
+    fun panvkAvailable(context: Context) = File(Paths(context).lib, "libvulkan_panfrost.so").exists()
+
+    /** PanVK, bundled or imported: the driver with the tiler heap Factorio's 8K atlases can exhaust. */
+    fun isPanvk(context: Context) = chosen(context).let { it == PANVK || it.startsWith("$PANVK-") }
 
     fun all(context: Context): List<Driver> {
         val paths = Paths(context)
         val mesa = paths.lib.list()?.firstOrNull { it.startsWith("libgallium-") }
             ?.removePrefix("libgallium-")?.removeSuffix(".so")?.let { "Mesa $it" } ?: "Mesa"
-        val bundled = listOf(
-            Driver(ZINK, "Zink + Turnip", "Bundled · $mesa"),
-            Driver(FREEDRENO, "Freedreno", "Bundled · OpenGL, slower"),
-        )
+        val bundled = buildList {
+            add(Driver(ZINK, "Zink + Turnip", "Bundled · $mesa"))
+            if (panvkAvailable(context)) add(Driver(PANVK, "PanVK + Zink", "Bundled · Mali, Mesa 26.3"))
+            add(Driver(FREEDRENO, "Freedreno", "Bundled · OpenGL, slower"))
+        }
         val imported = dir(paths).listFiles { f -> File(f, "driver.json").exists() }.orEmpty()
             .sortedByDescending { it.lastModified() }
             .mapNotNull { d ->
@@ -44,31 +55,58 @@ object Drivers {
 
     fun chosen(context: Context): String {
         val id = Settings.driver(context)
-        return if (all(context).any { it.id == id }) id else ZINK
+        if (all(context).any { it.id == id }) return id
+        // No choice yet: Mali and Immortalis only have PanVK; everything else gets Turnip.
+        return if (Gpu.mali && panvkAvailable(context)) PANVK else ZINK
     }
 
-    fun imported(context: Context) = chosen(context).let { it != ZINK && it != FREEDRENO }
+    fun imported(context: Context) = chosen(context).let { it != ZINK && it != FREEDRENO && it != PANVK }
 
     /** Over Session's defaults, which are Zink on our Turnip. */
-    fun environment(context: Context): Map<String, String> = when (val id = chosen(context)) {
-        ZINK -> emptyMap()
-        FREEDRENO -> mapOf("MESA_LOADER_DRIVER_OVERRIDE" to "kgsl")
-        // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
-        else -> mapOf("VK_DRIVER_FILES" to File(dir(Paths(context)), "$id/icd.json").path,
-                      "MESA_VK_WSI_DEBUG" to "sw")
+    fun environment(context: Context): Map<String, String> {
+        val paths = Paths(context)
+        val id = chosen(context)
+        val driver = when {
+            id == ZINK -> emptyMap()
+            id == FREEDRENO -> mapOf("MESA_LOADER_DRIVER_OVERRIDE" to "kgsl")
+            id == PANVK -> mapOf("VK_DRIVER_FILES" to panvkIcd(paths).path)
+            // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
+            else -> mapOf("VK_DRIVER_FILES" to File(dir(paths), "$id/icd.json").path)
+        }
+        if (!isPanvk(context)) return driver
+        return driver + mapOf(
+            "MESA_VK_WSI_DEBUG" to "sw",
+            // Two paths in PanVK put the sprite upload on the graphics pipeline, and its tiled (AFBC) images
+            // make it cover the whole 4K atlas in one draw: kbase then reports "tiler heap OOM" during the
+            // upload and the queue group dies (zink: DEVICE LOST!).
+            //   noafbc      - image copies stay compute instead of being forced through the graphics pipeline;
+            //   bc_compute  - BC (DXT) decode stays compute instead of a fragment pass into a tiled shadow.
+            "PANVK_DEBUG" to "noafbc,bc_compute",
+            // Factorio's 8K atlases made the same upload worse. Newer PanVK-kbase builds also read this
+            // (4 initial chunks, up to 400 = 800 MB); the bundled build has its own fixed limits.
+            "PANVK_KBASE_HEAP_CHUNKS" to "4,400",
+        )
     }
 
     /** The libraries an imported driver brought, searched after the runtime's. */
     fun libraries(context: Context): File? = if (imported(context)) File(dir(Paths(context)), chosen(context)) else null
 
     /** Settings → Driver → Options: `NAME=value` pairs for the game's environment, to test drivers with. */
-    fun options(context: Context): Map<String, String> = Settings.driverOptions(context).split(Regex("\\s+"))
-        .mapNotNull { OPTION.matchEntire(it)?.destructured }.associate { (name, value) -> name to value }
+    fun options(context: Context): Map<String, String> {
+        val options = Settings.driverOptions(context).split(Regex("\\s+"))
+            .mapNotNull { OPTION.matchEntire(it)?.destructured }.associate { (name, value) -> name to value }
+        // An override there must not drop the two flags PanVK needs to survive the sprite upload, or the field
+        // (say `PANVK_DEBUG=mem`) would bring the tiler heap crash back.
+        if (!isPanvk(context) || "PANVK_DEBUG" !in options) return options
+        val flags = options.getValue("PANVK_DEBUG").split(',').filter { it.isNotEmpty() }.toMutableList()
+        for (needed in listOf("noafbc", "bc_compute")) if (needed !in flags) flags += needed
+        return options + ("PANVK_DEBUG" to flags.joinToString(","))
+    }
 
     private val OPTION = Regex("""([A-Za-z_][A-Za-z0-9_]*)=(\S*)""")
 
     fun remove(context: Context, id: String) {
-        if (id == ZINK || id == FREEDRENO) return
+        if (id == ZINK || id == FREEDRENO || id == PANVK) return
         File(dir(Paths(context)), id).deleteRecursively()
     }
 

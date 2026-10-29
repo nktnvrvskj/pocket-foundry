@@ -29,6 +29,29 @@ gcc -shared -fPIC -O2 -Wl,-soname,libSPIRV-Tools.so -o $OUT/lib/libSPIRV-Tools.s
 cp -a /out/sdl$PREFIX/lib/libSDL3.so* $OUT/lib/
 cp /out/sdl$PREFIX/bin/pocketfoundry-padtest /out/sdl$PREFIX/bin/pocketfoundry-inputtest $OUT/bin/
 
+# PanVK, the Vulkan driver for Mali (v9 and newer), so those phones work without importing a driver. A Linux
+# (glibc) build from PanVK-kbase, itself Mesa (MIT): https://github.com/zenithblue-oss/panvk-kbase-android
+PANVK_TAG=panvk-kbase-v0.1.0-rc3
+PANVK_SHA=43d4783f664f21843b2fb2d5a3fdf4646fadb942e42d320ccb0e7449bd8e352f
+PANVK=/build/libvulkan_panfrost-$PANVK_TAG.so
+if [ ! -f "$PANVK" ]; then
+    curl -fL -o "$PANVK.part" \
+        "https://github.com/zenithblue-oss/panvk-kbase-android/releases/download/$PANVK_TAG/libvulkan_panfrost-glibc-aarch64.so"
+    mv "$PANVK.part" "$PANVK"
+fi
+echo "$PANVK_SHA  $PANVK" | sha256sum -c -
+cp "$PANVK" $OUT/lib/libvulkan_panfrost.so
+cat > $OUT/share/vulkan/icd.d/panfrost_icd.aarch64.json <<EOF
+{
+    "file_format_version": "1.0.1",
+    "ICD": {
+        "library_path": "$PREFIX/lib/libvulkan_panfrost.so",
+        "library_arch": "64",
+        "api_version": "1.4.363"
+    }
+}
+EOF
+
 # seeds: what the game dlopens. glibc is left out here: it comes from our build.
 seeds="libGL.so.1 libGLX.so.0 libGLdispatch.so.0 libEGL.so.1 libvulkan.so.1
        libX11.so.6 libX11-xcb.so.1 libXext.so.6 libXrandr.so.2 libXi.so.6 libXcursor.so.1
