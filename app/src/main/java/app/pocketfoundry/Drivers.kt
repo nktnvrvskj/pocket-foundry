@@ -81,7 +81,7 @@ object Drivers {
             // upload and the queue group dies (zink: DEVICE LOST!).
             //   noafbc      - image copies stay compute instead of being forced through the graphics pipeline;
             //   bc_compute  - BC (DXT) decode stays compute instead of a fragment pass into a tiled shadow.
-            "PANVK_DEBUG" to "noafbc,bc_compute",
+            "PANVK_DEBUG" to PANVK_FLAGS.joinToString(","),
             // Factorio's 8K atlases made the same upload worse. Newer PanVK-kbase builds also read this
             // (4 initial chunks, up to 400 = 800 MB); the bundled build has its own fixed limits.
             "PANVK_KBASE_HEAP_CHUNKS" to "4,400",
@@ -95,13 +95,22 @@ object Drivers {
     fun options(context: Context): Map<String, String> {
         val options = Settings.driverOptions(context).split(Regex("\\s+"))
             .mapNotNull { OPTION.matchEntire(it)?.destructured }.associate { (name, value) -> name to value }
-        // An override there must not drop the two flags PanVK needs to survive the sprite upload, or the field
-        // (say `PANVK_DEBUG=mem`) would bring the tiler heap crash back.
+        // An override there must not drop the flags PanVK needs to survive the sprite upload, or the field (say
+        // `PANVK_DEBUG=mem`) would bring the tiler heap crash back. A value starting with `!` replaces them
+        // instead, so a phone with a different PanVK bug can A/B the paths: `PANVK_DEBUG=!noafbc`.
         if (!isPanvk(context) || "PANVK_DEBUG" !in options) return options
-        val flags = options.getValue("PANVK_DEBUG").split(',').filter { it.isNotEmpty() }.toMutableList()
-        for (needed in listOf("noafbc", "bc_compute")) if (needed !in flags) flags += needed
+        val raw = options.getValue("PANVK_DEBUG")
+        if (raw.startsWith("!")) {
+            val literal = raw.drop(1)
+            return if (literal.isEmpty()) options - "PANVK_DEBUG" else options + ("PANVK_DEBUG" to literal)
+        }
+        val flags = raw.split(',').filter { it.isNotEmpty() }.toMutableList()
+        for (needed in PANVK_FLAGS) if (needed !in flags) flags += needed
         return options + ("PANVK_DEBUG" to flags.joinToString(","))
     }
+
+    /** The PanVK debug flags the sprite upload needs to stay off the graphics pipeline (see environment()). */
+    private val PANVK_FLAGS = listOf("noafbc", "bc_compute")
 
     private val OPTION = Regex("""([A-Za-z_][A-Za-z0-9_]*)=(\S*)""")
 
