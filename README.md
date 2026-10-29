@@ -38,6 +38,11 @@ Needs Android 10 or later.
 Something wrong, or it works on your phone? [Open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with
 what the Logs screen shows (its Copy button takes it all).
 
+## This fork
+
+Mali support here — the bundled PanVK driver and the Factorio settings that keep its sprite upload off the GPU's
+tiler heap — was added with AI assistance.
+
 ## Licence
 
 GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), PanVK-kbase (MIT), SDL (zlib), liblzma (0BSD),
