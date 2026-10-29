@@ -1,7 +1,14 @@
 buildscript {
     repositories {
+        maven {
+            url = uri("https://maven.aliyun.com/repository/google")
+        }
+        maven {
+            url = uri("https://maven.aliyun.com/repository/central")
+        }
         google()
         mavenCentral()
+        maven { url 'https://repo1.maven.org/maven2' }
     }
     dependencies {
         // Same AGP as third_party/termux-x11.
